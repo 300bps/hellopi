@@ -37,7 +37,7 @@ OS_PLATFORM = sys.platform
 logger = logging.getLogger(__name__)
 
 # Command-line arguments
-cmdline_args_dict = {'-h': False, '-a': False, '-v': False}
+cmdline_args_dict = {'-a': False, '-h': False, '-q': False, '-v': False}
 
 show_all_devices = False                    # When True, show all devices - not just RPIs
 verbose_output = False                      # When True, additional info is output
@@ -54,7 +54,8 @@ def format_time(datetime: dt.datetime) -> str:
     if not isinstance(datetime, dt.datetime):
         raise TypeError("TypeError: datetime.datetime object required.")
 
-    return datetime.strftime("%-I:%M.%S %p")
+    # Note: Windows doesn't support the -I formatter, so must use I for cross-platform
+    return datetime.strftime("%I:%M.%S %p")
 
 
 def open_socket():
@@ -68,30 +69,34 @@ def open_socket():
 
 
     if "win32" in OS_PLATFORM:
-        # Windows
-        print("Win")
+        # NOTE: On windows, firewall rules apply to raw sockets (unlike linux). Must add a windows firewall ALLOW rule
+        # with the following characteristics:
+        # WINDOWS FIREWALL ALLOW rule: Name->DHCP Server Port; Protocol->UDP; Local port->67; Remote port->68;
+        # Local IP Address: 255.255.255.255; Remote IP Address: 0.0.0.0
 
-        # Create raw socket
+        # Windows: Create raw socket
+        # AF_INET DOES NOT BYPASS WINDOWS FIREWALL, so port of interest must be opened
         sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_IP)
 
         # TODO: REMOVE DEBUG LINE AND FIND WHY CTRL-C DOESN'T TERMINATE
-        sock.settimeout(30)
+        sock.settimeout(20)
 
         # Bind raw socket to ip broadcast address
         sock.bind(("255.255.255.255", 0))
 
-        # [Windows specific] Include IP headers
+        # # [Windows specific] Include IP headers
         sock.setsockopt(socket.IPPROTO_IP, socket.IP_HDRINCL, 1)
 
         # [Windows specific] receive all packages
         sock.ioctl(socket.SIO_RCVALL, socket.RCVALL_ON)
 
     elif "darwin" in OS_PLATFORM:
-        # Mac OSX
+        # Mac OSX: Create raw socket
         sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(ETH_P_IP))
 
     else:
-        # *nix
+        # *nix: Create raw socket
+        # AF_PACKET for raw socket access bypasses iptables, so packet can be read without opening the firewall port
         sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(ETH_P_IP))
 
     return sock
@@ -113,16 +118,23 @@ def close_socket(sock: socket.socket):
 
 
 def show_hello(p, dhcp, is_rpi=True, verbose=False):
+    verbose_common = f"{format_time(dt.datetime.now())} | [IP Address {p.ip.format_ip_addr(dhcp.requested_ip)}] "
+    terse_common = f"{p.ip.format_ip_addr(dhcp.requested_ip)}: "
+
     if is_rpi:
         if verbose:
-            print(f"{format_time(dt.datetime.now())} | [IP Address {p.ip.format_ip_addr(dhcp.requested_ip)}] "
+            print(verbose_common +
                   f"- Raspberry Pi '{dhcp.hostname}' ({p.enet.format_mac_addr(p.enet.src_mac)}) said \"Hello!\"")
 
         else:
-            print(f"{p.ip.format_ip_addr(dhcp.requested_ip)}: Raspberry Pi '{dhcp.hostname}' said \"Hello!\"")
+            print(terse_common + f"Raspberry Pi '{dhcp.hostname}' said \"Hello!\"")
 
     else:
-        print(f"{p.ip.format_ip_addr(dhcp.requested_ip)}: Device '{dhcp.hostname}' said \"Hello!\"")
+        if verbose:
+            print(verbose_common + f"- Device '{dhcp.hostname}' said \"Hello!\"")
+
+        else:
+            print(terse_common + f"Device '{dhcp.hostname}' said \"Hello!\"")
 
 
 def cmdline_options(argv: list, arg_dict: dict):
@@ -148,11 +160,11 @@ def show_help():
     print("--------")
     print("This utility watches the local area network (LAN) for DHCP requests and reports the ip address of any "
           "Raspberry Pi that boots up connected to the same LAN. On Windows, option '-a' is always applied due to "
-          "the inability to access the raw ethernet frame."
-          )
+          "the inability to access the raw ethernet frame.")
     print("OPTIONS:")
-    print("  -a\tDisplay ALL connected devices (not just RPis) that make a DHCP request for an ip address.")
+    print("  -a\tDisplay ALL devices (not just RPis) making a DHCP request for an ip address.")
     print("  -h\tDisplay this help message.")
+    print("  -q\tQuiet the program startup information.")
     print("  -v\tDisplay verbose messages.")
 
 
@@ -182,41 +194,39 @@ def main(argv=None):
             sys.exit(0)
 
         # Cmdline arg: '-a' = Display all device (not just RPis) DHCP requests
-        if cmdline_args_dict.get('-a', False):
-            show_all_devices = True
-
-        # Windows always applies '-a' option
-        elif windows_platform:
+        # (Windows always applies '-a' option)
+        if cmdline_args_dict.get('-a', False) or windows_platform:
             show_all_devices = True
 
         # Cmdline arg: '-v' = Use verbose output statements
         if cmdline_args_dict.get('-v', False):
             verbose_output = True
 
+        # Cmdline arg: '-q' = Quiet - suppress unnecessary output
+        if not cmdline_args_dict.get('-q', False):
+            # Print app identifying info and status
+            print(APP_NAME)
+            if windows_platform:
+                print("(Note: Windows always applies the '-a' option.)")
 
-        # Print initial info
-        print(APP_NAME)
-        if windows_platform:
-            print("(Note: Windows always applies the '-a' option.)")
+            if verbose_output:
+                # Verbose version
+                if show_all_devices:
+                    msg = "Watching LAN for 'Hello' messages from all devices."
+                else:
+                    msg = "Watching LAN for 'Hello' messages from Raspberry Pis."
 
-        if cmdline_args_dict.get("-v", False):
-            # Verbose version
-            if show_all_devices:
-                msg = "Watching LAN for 'Hello' messages from all devices."
+                msg += "\nPower-up a connected Raspberry Pi to see its ip address."
+                print(msg)
+
             else:
-                msg = "Watching LAN for 'Hello' messages from Raspberry Pis."
+                # Regular version
+                if show_all_devices:
+                    print("Watching LAN for 'Hello' messages from all devices.")
+                else:
+                    print("Watching LAN for 'Hello' messages from Raspberry Pis.")
 
-            msg += " Power up a connected Raspberry Pi to see its ip address."
-            print(msg)
-
-        else:
-            # Regular version
-            if show_all_devices:
-                print("Watching LAN for 'Hello' messages from all devices.")
-            else:
-                print("Watching LAN for 'Hello' messages from Raspberry Pis.")
-
-        print()
+            print()
 
 
         # Reuseable packet buffer
@@ -238,8 +248,10 @@ def main(argv=None):
                     # The utility automatically applies the '-a' option to show all devices on Windows as a result.
                     p = ipxray.INETPacket(ip_packet=packet_buffer)
                     # $$$ TODO: Following line is debug
-                    if p.udp and not p.udp.dst_port == 22 and not p.udp.src_port == 22:
-                        print(p)
+                    # if p.udp and not p.udp.dst_port == 22 and not p.udp.src_port == 22:
+                    #     print(p)
+                    # elif p.icmp:
+                    #     print(p)
 
                 else:
                     # *nix sockets return ethernet protocol (layer 2)
