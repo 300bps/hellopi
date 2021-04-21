@@ -19,14 +19,16 @@ import ipxray.packet as ipxray
 
 # ** Module configuration constants **
 APP_NAME = "Hello Pi"
-APP_VERSION = "0.1"
+APP_VERSION = "1.0"
 
-LOG_FILENAME = APP_NAME.replace(" ", "_") + ".log"
-LOG_RECORD_FILTER_LEVEL = logging.INFO  # Log/propagate log records >= this level
+LOG_FILENAME = APP_NAME.replace(" ", "_").lower() + ".log"
+LOG_LEVEL = logging.INFO
 
 # The organizationally unique ids (OUI) for Raspberry Pis (first 3 bytes of the MAC address)
-# RASPBERRY_PI_MAC_OUIS = [bytes.fromhex("b827eb"), bytes.fromhex("dca632"), bytes.fromhex("e45f01")]
-RASPBERRY_PI_MAC_OUIS = [bytes.fromhex("5cf5da"), bytes.fromhex("347c25")]
+RASPBERRY_PI_MAC_OUIS = [bytes.fromhex("b827eb"), bytes.fromhex("dca632"), bytes.fromhex("e45f01")]
+
+# TODO: REMOVE FOLLOWING DEBUG LINE
+# RASPBERRY_PI_MAC_OUIS = [bytes.fromhex("5cf5da"), bytes.fromhex("347c25")]
 
 # Identify the current OS platform
 OS_PLATFORM = sys.platform
@@ -45,17 +47,17 @@ windows_platform = "win32" in OS_PLATFORM   # True when on Windows; False otherw
 
 
 
-def format_time(datetime: dt.datetime) -> str:
+def format_time(datetime_obj: dt.datetime) -> str:
     """
     Apply simple formatting to display the time from a datetime.datetime object.
-    :param datetime: datetime.datetime object to use as time to display
+    :param datetime_obj: datetime.datetime object to use as time to display
     :return: A time string formatted such as "1:27.03 AM"
     """
-    if not isinstance(datetime, dt.datetime):
+    if not isinstance(datetime_obj, dt.datetime):
         raise TypeError("TypeError: datetime.datetime object required.")
 
     # Note: Windows doesn't support the -I formatter, so must use I for cross-platform
-    return datetime.strftime("%I:%M.%S %p")
+    return datetime_obj.strftime("%I:%M.%S %p")
 
 
 def open_socket():
@@ -78,8 +80,8 @@ def open_socket():
         # AF_INET DOES NOT BYPASS WINDOWS FIREWALL, so port of interest must be opened
         sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_IP)
 
-        # TODO: REMOVE DEBUG LINE AND FIND WHY CTRL-C DOESN'T TERMINATE
-        sock.settimeout(20)
+        # Socket calls are blocking - using a short timeout is required to keep responsive to user ctrl-C on Windows
+        sock.settimeout(1)
 
         # Bind raw socket to ip broadcast address
         sock.bind(("255.255.255.255", 0))
@@ -94,10 +96,18 @@ def open_socket():
         # Mac OSX: Create raw socket
         sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(ETH_P_IP))
 
+        # Socket calls are blocking, but ctrl-C on seems to interrupt them without requiring a socket timeout
+        # and therefore doesn't seem to need the following line.
+        # sock.settimeout(1)
+
     else:
         # *nix: Create raw socket
         # AF_PACKET for raw socket access bypasses iptables, so packet can be read without opening the firewall port
         sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(ETH_P_IP))
+
+        # Socket calls are blocking, but ctrl-C on *nix seems to interrupt them without requiring a socket timeout
+        # and therefore doesn't seem to need the following line.
+        # sock.settimeout(1)
 
     return sock
 
@@ -118,23 +128,28 @@ def close_socket(sock: socket.socket):
 
 
 def show_hello(p, dhcp, is_rpi=True, verbose=False):
-    verbose_common = f"{format_time(dt.datetime.now())} | [IP Address {p.ip.format_ip_addr(dhcp.requested_ip)}] "
-    terse_common = f"{p.ip.format_ip_addr(dhcp.requested_ip)}: "
+    verbose_ip = f"[IP Address {p.ip.format_ip_addr(dhcp.requested_ip)}]"
+    verbose_common = f"{format_time(dt.datetime.now())} | {verbose_ip:<28} "
+
+    terse_common = f"{p.ip.format_ip_addr(dhcp.requested_ip)+' ':<16}"
 
     if is_rpi:
         if verbose:
-            print(verbose_common +
-                  f"- Raspberry Pi '{dhcp.hostname}' ({p.enet.format_mac_addr(p.enet.src_mac)}) said \"Hello!\"")
+            hello_msg = verbose_common + \
+                        f"- Raspberry Pi '{dhcp.hostname}' ({p.enet.format_mac_addr(p.enet.src_mac)}) said \"Hello!\""
 
         else:
-            print(terse_common + f"Raspberry Pi '{dhcp.hostname}' said \"Hello!\"")
+            hello_msg = terse_common + f"- Raspberry Pi '{dhcp.hostname}' said \"Hello!\""
 
     else:
         if verbose:
-            print(verbose_common + f"- Device '{dhcp.hostname}' said \"Hello!\"")
+            hello_msg = verbose_common + f"- Device '{dhcp.hostname}' said \"Hello!\""
 
         else:
-            print(terse_common + f"Device '{dhcp.hostname}' said \"Hello!\"")
+            hello_msg = terse_common + f"- Device '{dhcp.hostname}' said \"Hello!\""
+
+    print(hello_msg)
+    logger.info(hello_msg)
 
 
 def cmdline_options(argv: list, arg_dict: dict):
@@ -181,8 +196,10 @@ def main(argv=None):
     try:
         # Initialize logging functionality
         ver_str = f"(Version {APP_VERSION:s})"
-        logging.basicConfig(filename=os.path.join(os.path.dirname(os.path.abspath(__file__)), LOG_FILENAME), level=logging.INFO, format="%(asctime)s   [%(module)12.12s:%(lineno)4s] %(levelname)-8s %(message)s", filemode='w')
+        logging.basicConfig(filename=os.path.join(os.path.dirname(os.path.abspath(__file__)), LOG_FILENAME), level=LOG_LEVEL, format="%(asctime)s   [%(module)12.12s:%(lineno)4s] %(levelname)-8s %(message)s", filemode='w')
         logging.info(APP_NAME + " " + ver_str)
+        if argv and len(argv) > 1:
+            logging.info("Command line arguments: " + " ".join(argv[1:]))
 
 
         # Decipher command-line options and update
@@ -213,10 +230,11 @@ def main(argv=None):
                 # Verbose version
                 if show_all_devices:
                     msg = "Watching LAN for 'Hello' messages from all devices."
+                    msg += "\nPower-up a connected device to see its ip address."
                 else:
                     msg = "Watching LAN for 'Hello' messages from Raspberry Pis."
+                    msg += "\nPower-up a connected Raspberry Pi to see its ip address."
 
-                msg += "\nPower-up a connected Raspberry Pi to see its ip address."
                 print(msg)
 
             else:
@@ -234,10 +252,16 @@ def main(argv=None):
 
         # Open the socket and look for desired packet
         sock = open_socket()
+
         try:
             while True:
-                # Listen for packets
-                packet_size = sock.recv_into(packet_buffer)
+                try:
+                    # Listen for packets (blocking call)
+                    packet_size = sock.recv_into(packet_buffer)
+
+                except socket.timeout:
+                    packet_size = None
+
                 if not packet_size:
                     continue
 
@@ -245,13 +269,8 @@ def main(argv=None):
                 if windows_platform:
                     # Win sockets return ip protocol (layer 3)
                     # NOTE: Without layer 2, we can't get the MAC address to test the OUI to see if device is a RPi.
-                    # The utility automatically applies the '-a' option to show all devices on Windows as a result.
+                    # As a result, the utility automatically applies the '-a' option to show all devices on Windows.
                     p = ipxray.INETPacket(ip_packet=packet_buffer)
-                    # $$$ TODO: Following line is debug
-                    # if p.udp and not p.udp.dst_port == 22 and not p.udp.src_port == 22:
-                    #     print(p)
-                    # elif p.icmp:
-                    #     print(p)
 
                 else:
                     # *nix sockets return ethernet protocol (layer 2)
@@ -293,9 +312,6 @@ def main(argv=None):
         logger.exception("Unhandled Exception:")
         sys.exit(-1)
 
-    finally:
-        # Handle any shutdown cleanup
-        pass
 
 
 # Ensure that the software is run in the expected way - through the run.py script
