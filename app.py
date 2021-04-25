@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # Hello Pi
-# A program to identify the ip address of Raspberry Pis added to the local area network.
+# A program to identify the ip address of Raspberry Pis (or other devices) added to the local area network.
 #
 # David Smith
 # 4/11/21
