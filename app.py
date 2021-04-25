@@ -22,6 +22,7 @@ import ipxray.packet as ipxray
 APP_NAME = "Hello Pi"
 APP_VERSION = "1.0"
 
+LOG_ENABLE_LOGGING = False
 LOG_FILENAME = APP_NAME.replace(" ", "_").lower() + ".log"
 LOG_LEVEL = logging.INFO
 
@@ -36,8 +37,14 @@ OS_PLATFORM = sys.platform
 
 
 # ** Module objects/variables **
-# Local logger for this module
-logger = logging.getLogger(__name__)
+logger = logging.getLogger(__name__)            # Local logger for this module
+logger.addHandler(logging.NullHandler())        # Add a local null handler (eats messages when logging disabled)
+logger.propagate = False                        # Prevent log messages from propagating further up than this level.
+
+if LOG_ENABLE_LOGGING:
+    # Configure the logger, log file, level, and format
+    logging.basicConfig(filename=os.path.join(os.path.dirname(os.path.abspath(__file__)), LOG_FILENAME), level=LOG_LEVEL,
+                        format="%(asctime)s   [%(module)12.12s:%(lineno)4s] %(levelname)-8s %(message)s", filemode='w')
 
 # Command-line arguments
 cmdline_args_dict = {'-a': False, '-h': False, '-q': False, '-v': False}
@@ -232,13 +239,10 @@ def main(argv=None):
     global verbose_output
 
     try:
-        # Initialize logging functionality
         ver_str = f"(Version {APP_VERSION:s})"
-        logging.basicConfig(filename=os.path.join(os.path.dirname(os.path.abspath(__file__)), LOG_FILENAME), level=LOG_LEVEL, format="%(asctime)s   [%(module)12.12s:%(lineno)4s] %(levelname)-8s %(message)s", filemode='w')
         logging.info(APP_NAME + " " + ver_str)
         if argv and len(argv) > 1:
             logging.info("Command line arguments: " + " ".join(argv[1:]))
-
 
         # Decipher command-line options and update
         cmdline_args_dict = cmdline_options(argv, cmdline_args_dict)
