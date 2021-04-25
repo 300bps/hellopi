@@ -6,6 +6,7 @@
 # 4/11/21
 # License: MIT
 
+import errno
 import datetime as dt
 import logging
 import os
@@ -77,8 +78,26 @@ def open_socket():
         # Local IP Address: 255.255.255.255; Remote IP Address: 0.0.0.0
 
         # Windows: Create raw socket
-        # AF_INET DOES NOT BYPASS WINDOWS FIREWALL, so port of interest must be opened
-        sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_IP)
+        # AF_INET DOES NOT BYPASS WINDOWS FIREWALL, so port of interest must be opened in the firewall
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_RAW, socket.IPPROTO_IP)
+
+        except OSError as ex:
+            # Permissions error under Windows
+            if ex.errno == errno.WSAEACCES:
+                if verbose_output:
+                    msg = "Error: Program must be run with administrator privileges to open a raw socket."
+                else:
+                    msg = "Error: Program must be run with administrator privileges."
+                print(msg)
+                logger.error(msg)
+
+            else:
+                msg = "Error attempting to open raw socket: " + str(ex)
+                print(msg)
+                logger.error(msg)
+
+            sys.exit(-1)
 
         # Socket calls are blocking - using a short timeout is required to keep responsive to user ctrl-C on Windows
         sock.settimeout(1)
@@ -94,6 +113,7 @@ def open_socket():
 
     elif "darwin" in OS_PLATFORM:
         # Mac OSX: Create raw socket
+        # TODO: CHECK FOR PERMISSION ERRORS FOR MAC HERE
         sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(ETH_P_IP))
 
         # Socket calls are blocking, but ctrl-C on seems to interrupt them without requiring a socket timeout
@@ -103,7 +123,25 @@ def open_socket():
     else:
         # *nix: Create raw socket
         # AF_PACKET for raw socket access bypasses iptables, so packet can be read without opening the firewall port
-        sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(ETH_P_IP))
+        try:
+            sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(ETH_P_IP))
+
+        except PermissionError:
+            if verbose_output:
+                msg = ("Error: Program must be run with administrator privileges (via sudo or as root) " +
+                       "to open a raw socket.")
+            else:
+                msg = "Error: Program must be run with administrator privileges (via sudo or as root)."
+
+            print(msg)
+            logger.error(msg)
+            sys.exit(-1)
+
+        except Exception as ex:
+            msg = "Error attempting to open raw socket: " + str(ex)
+            print(msg)
+            logger.error(msg)
+            sys.exit(-1)
 
         # Socket calls are blocking, but ctrl-C on *nix seems to interrupt them without requiring a socket timeout
         # and therefore doesn't seem to need the following line.
