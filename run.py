@@ -11,20 +11,17 @@
 # sys.modules once.  Otherwise, it could be loaded one time as '__main__' and a second time by its real name if it is
 # imported by other modules.
 
-import sys
-
 import app
 
 
-def execute(argv=None):
+def execute():
     """
     Primary program entry point.
-    :param argv: List of command line arguments or None.
     :return: None
     """
     # Run the app
-    app.main(argv)
+    app.main()
 
 
 if __name__ == "__main__":
-    execute(sys.argv)
+    execute()
