@@ -29,9 +29,6 @@ LOG_LEVEL = logging.INFO
 # The organizationally unique ids (OUI) for Raspberry Pis (first 3 bytes of the MAC address)
 RASPBERRY_PI_MAC_OUIS = [bytes.fromhex("b827eb"), bytes.fromhex("dca632"), bytes.fromhex("e45f01")]
 
-# TODO: REMOVE FOLLOWING DEBUG LINE
-# RASPBERRY_PI_MAC_OUIS = [bytes.fromhex("5cf5da"), bytes.fromhex("347c25")]
-
 # Identify the current OS platform
 OS_PLATFORM = sys.platform
 
@@ -120,8 +117,25 @@ def open_socket():
 
     elif "darwin" in OS_PLATFORM:
         # Mac OSX: Create raw socket
-        # TODO: CHECK FOR PERMISSION ERRORS FOR MAC HERE
-        sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(ETH_P_IP))
+        try:
+            sock = socket.socket(socket.AF_PACKET, socket.SOCK_RAW, socket.htons(ETH_P_IP))
+
+        except PermissionError:
+            if verbose_output:
+                msg = ("Error: Program must be run with administrator privileges (via sudo or as root) " +
+                       "to open a raw socket.")
+            else:
+                msg = "Error: Program must be run with administrator privileges (via sudo or as root)."
+
+            print(msg)
+            logger.error(msg)
+            sys.exit(-1)
+
+        except Exception as ex:
+            msg = "Error attempting to open raw socket: " + str(ex)
+            print(msg)
+            logger.error(msg)
+            sys.exit(-1)
 
         # Socket calls are blocking, but ctrl-C on seems to interrupt them without requiring a socket timeout
         # and therefore doesn't seem to need the following line.
@@ -348,7 +362,6 @@ def main(argv=None):
         sys.exit(0)
 
     except Exception as ex:
-        # TODO: Clean up this
         print("Exception: ", ex)
         print(traceback.format_exc())
         logger.exception("Unhandled Exception:")
