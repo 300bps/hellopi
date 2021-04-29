@@ -242,10 +242,9 @@ def show_help():
     print("  -v\tDisplay verbose messages.")
 
 
-def main(argv=None):
+def main():
     """
     Application main routine.
-    :param argv: List of command-line arguments or None.
     :return: None
     """
     global cmdline_args_dict
@@ -253,6 +252,9 @@ def main(argv=None):
     global verbose_output
 
     try:
+        # Command-line arguments
+        argv = sys.argv
+
         ver_str = f"(Version {APP_VERSION:s})"
         logging.info(APP_NAME + " " + ver_str)
         if argv and len(argv) > 1:
