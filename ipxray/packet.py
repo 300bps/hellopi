@@ -15,7 +15,7 @@ from typing import Union, Optional
 
 class INETPacket:
     """
-    Generic application layer protocol decoder. Decodes each of the layers in the stack.
+    Generic internet tcp/ip protocol dissector. Decodes each of the layers in the stack.
     """
 
     class ProtocolLayer(enum.Enum):
@@ -23,16 +23,20 @@ class INETPacket:
         IP = enum.auto()
 
 
-
     def __init__(self, *,
                  enet_packet: Optional[Union[bytes, bytearray]] = None,
                  ip_packet: Optional[Union[bytes, bytearray]] = None):
+        """
+        Pass in EITHER an ethernet packet/frame OR an ip packet to create an object that attempts to
+        dissect the packet into the various layers of the internet packet stack.
+        :param enet_packet: Raw ethernet frame data
+        :param ip_packet: Raw ip packet data
+        """
 
         if not any([enet_packet, ip_packet]):
             raise ValueError("No packet parameter passed.")
         elif not any([isinstance(enet_packet, (bytes, bytearray)), isinstance(ip_packet, (bytes, bytearray))]):
             raise TypeError("Packet parameters must be of type 'bytes' or 'bytearray'.")
-
 
         # Handles to the various layers
         self.enet = None
@@ -61,15 +65,15 @@ class INETPacket:
 
     def _parse(self, raw_packet: Union[bytes, bytearray, memoryview], base_layer: ProtocolLayer):
         """
-        Attempt the parse the packet one layer at a time starting at the ethernet layer (layer 2) up through the
+        Attempt to parse the packet one layer at a time starting at the ethernet layer (layer 2) up through the
         tcp/udp/icmp (layer 4)
         :param raw_packet: Raw ethernet or ip packet as specified in base_layer
         :param base_layer: Enum ProtocolLayer specifying raw_packet lowest layer is ethernet (layer 2) or ip (layer 3)
         :return:
         """
+
         # Parse as much of the packet as possible as long as there are no exceptions
         try:
-
             # Specify if packet data lowest level is ethernet or ip. If not ETHERNET (layer 2), assume IP (layer 3)
             if base_layer == self.ProtocolLayer.ETHERNET:
                 # OSI Layer 2 (ethernet)
@@ -86,7 +90,8 @@ class INETPacket:
             else:
                 raise ValueError("Invalid protocol layer specified")
 
-            # OSI Layer 4 (TCP, UDP, ICMP, or others)
+            # OSI Layer 4 (TCP, UDP, or others)
+            # (ICMP is technically layer 3 but is decoded here)
             if self.ip.protocol == "icmp":
                 self.icmp = ICMPPacket(self.ip.payload)
             elif self.ip.protocol == "tcp":
@@ -120,6 +125,10 @@ class INETPacket:
 
 
 class DHCPPacket:
+    """
+    DHCP packet decoder.
+    """
+
     OPTIONS_OFFSET = 240
 
 
@@ -131,7 +140,6 @@ class DHCPPacket:
         SERVER_ID = 54
         REQUEST_IPADDRESS = 50
         HOSTNAME = 12
-
 
 
     class OptionMessageType(enum.IntEnum):
@@ -149,6 +157,12 @@ class DHCPPacket:
 
 
     def __init__(self, udp_payload: Union[bytes, bytearray]):
+        """
+        Pass in a udp packet payload containing a DHCP message to create an object to
+        decode the dhcp packet.
+        :param udp_payload: udp packet payload containing dhcp message to decode.
+        """
+
         self.is_dhcp = False
         self.options = []
         self.message_type = None
@@ -160,6 +174,12 @@ class DHCPPacket:
 
 
     def _parse(self, udp_payload):
+        """
+        Attempt to parse the udp_payload containing a dhcp message (layer 5).
+        :param udp_payload: udp packet payload containing the dhcp message to decode.
+        :return:
+        """
+
         # Attempt to parse options fields
         try:
             # Create iterator at the beginning of options field
@@ -224,8 +244,16 @@ class DHCPPacket:
 # ** Layer 4 Protocols (Transport Layer)
 
 class TCPPacket:
+    """
+    TCP packet decoder.
+    """
 
     def __init__(self, tcp_packet: Union[bytes, bytearray]):
+        """
+        Pass in a tcp packet to decode it.
+        :param tcp_packet: tcp packet to decode.
+        """
+
         self.src_port = None
         self.dst_port = None
         self.seq_num = None
@@ -236,6 +264,12 @@ class TCPPacket:
 
 
     def _parse(self, tcp_packet: Union[bytes, bytearray]):
+        """
+        Attempt to parse the tcp packet (layer 4).
+        :param tcp_packet: tcp packet to decode.
+        :return:
+        """
+
         self.src_port, self.dst_port, self.seq_num, self.ack_num = struct.unpack_from("!H H L L", tcp_packet, 0)
 
         # Read data offset field and convert from num longs to num bytes
@@ -251,8 +285,16 @@ class TCPPacket:
 
 
 class UDPPacket:
+    """
+    UDP packet decoder.
+    """
 
     def __init__(self, udp_packet: Union[bytes, bytearray]):
+        """
+        Pass in a udp packet to decode it.
+        :param udp_packet: udp packet to decode.
+        """
+
         self.src_port = None
         self.dst_port = None
         self.length = None
@@ -263,6 +305,12 @@ class UDPPacket:
 
 
     def _parse(self, udp_packet: Union[bytes, bytearray]):
+        """
+        Attempt to parse the udp packet (layer 4).
+        :param udp_packet: udp packet to decode.
+        :return:
+        """
+
         self.src_port, self.dst_port = struct.unpack_from("!H H", udp_packet, 0)
         self.length, self.checksum = struct.unpack_from("!H H", udp_packet, 4)
 
@@ -275,36 +323,22 @@ class UDPPacket:
 
 
 
-class ICMPPacket:
-    # Convert ICMP type code to description
-    ICMP_TYPE = {0: "ping reply", 3: "dest unreachable", 4: "source quench", 5: "redirect", 8: "ping"}
-
-
-    def __init__(self, icmp_packet: Union[bytes, bytearray]):
-        self.icmp_type = None
-
-        self._parse(icmp_packet)
-
-
-    def _parse(self, ip_packet: Union[bytes, bytearray]):
-        # Decode ICMP type
-        self.icmp_type = struct.unpack_from("!B", ip_packet, 0)[0]
-        self.icmp_type = self.ICMP_TYPE.get(self.icmp_type, self.icmp_type)
-
-
-    def __str__(self):
-        return f"<icmp layer: type={self.icmp_type}>"
-
-
-
 # ** Layer 3 Protocols (Internet Layer)
 
 class IPPacket:
+    """
+    IP packet decoder.
+    """
+
     # Convert protocol field values to protocol names
     PROTOCOL_ASSIGNMENTS = {1: "icmp", 6: "tcp", 17: "udp"}
 
 
     def __init__(self, ip_packet: Union[bytes, bytearray]):
+        """
+        Pass in an ip packet to decode it.
+        :param ip_packet: ip packet to decode.
+        """
         self.src_ip = None
         self.dst_ip = None
         self.protocol = None
@@ -319,6 +353,12 @@ class IPPacket:
 
 
     def _parse(self, ip_packet: Union[bytes, bytearray]):
+        """
+        Attempt to parse the ip packet (layer 3).
+        :param ip_packet: ip packet to decode.
+        :return:
+        """
+
         # Decode IHL to get start of data location in packet
         ip_header_length = struct.unpack_from("!B", ip_packet, 0)[0]
         ip_header_length = (ip_header_length & 0x0F) * 4
@@ -344,15 +384,59 @@ class IPPacket:
 
 
 
+class ICMPPacket:
+    """
+    ICMP packet decoder.
+    """
+
+    # Convert ICMP type code to description
+    ICMP_TYPE = {0: "ping reply", 3: "dest unreachable", 4: "source quench", 5: "redirect", 8: "ping"}
+
+
+    def __init__(self, ip_packet: Union[bytes, bytearray]):
+        """
+        Pass in an ip packet containing an icmp message to have it decoded.
+        :param ip_packet: ip packet containing icmp message to decode.
+        """
+        self.icmp_type = None
+
+        self._parse(ip_packet)
+
+
+    def _parse(self, ip_packet: Union[bytes, bytearray]):
+        """
+        Attempt to parse the icmp packet (layer 3).
+        :param ip_packet: ip packet containing dhcp message to decode.
+        :return:
+        """
+
+        # Decode ICMP type
+        self.icmp_type = struct.unpack_from("!B", ip_packet, 0)[0]
+        self.icmp_type = self.ICMP_TYPE.get(self.icmp_type, self.icmp_type)
+
+
+    def __str__(self):
+        return f"<icmp layer: type={self.icmp_type}>"
+
+
+
 # ** Layer 2 Protocols (Link Layer)
 
 class ENETPacket:
+    """
+    ETHERNET packet decoder.
+    """
 
     # Location of payload data in the packet
     PAYLOAD_OFFSET = 14
     CRC_CHECKSUM_LEN = 4
 
+
     def __init__(self, enet_frame: Union[bytes, bytearray]):
+        """
+        Pass in an ethernet frame to decode it.
+        :param enet_frame: ethernet frame to decode.
+        """
         self.src_mac = None
         self.dst_mac = None
         self.ether_type = None
@@ -368,6 +452,12 @@ class ENETPacket:
 
 
     def _parse(self, enet_frame: Union[bytes, bytearray]):
+        """
+        Attempt to parse the ethernet packet (frame) (layer 2).
+        :param enet_frame: ethernet packet (frame) to decode.
+        :return:
+        """
+
         # Decode ethernet header (dest mac, source mac, ether type)
         header = struct.unpack_from("!6s 6s h", enet_frame, 0)
 
@@ -384,5 +474,3 @@ class ENETPacket:
     def __str__(self):
         return (f"<ethernet layer: src mac={self.format_mac_addr(self.src_mac):s}\t"
                 f"dst mac={self.format_mac_addr(self.dst_mac):s}>")
-
-
