@@ -19,7 +19,7 @@ _Hello Pi_ is run from a computer (the 'Host') connected to the same DHCP-config
 other device to be discovered. 
 
 1. Using the command-prompt, start _Hello Pi_ on the Host.
-   * Note that the --help option can be used to see a list of available command options.
+   * Note that the -h option can be used to see a list of available command options.
 2. The initial state of the Target (RPi or device) is powered-down/unpowered.
 3. Connect Target to the LAN.
    * If using Ethernet, physically connect the cable.
@@ -55,4 +55,6 @@ messages, it can display the ip address of the connecting RPi or device.
 ##### Windows: #####
 _Hello Pi_ on Windows must be run with administrator privileges. This is required to allow it to create a
 "raw socket", which it uses to see DHCP Request broadcast messages sent by devices connecting to the LAN. From these
-messages, it can display the ip address of the connecting RPi or device. 
+messages, it can display the ip address of the connecting RPi or device.
+
+TODO: ADD NOTE ABOUT FIREWALL REQUIREMENTS TO ALLOW READING OF BROADCAST DHCP
