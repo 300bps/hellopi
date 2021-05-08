@@ -242,8 +242,9 @@ def cmdline_options(argv: list, arg_dict: dict):
 def show_help():
     print(APP_NAME, f"(v{APP_VERSION:s})")
     print("--------")
-    print("This utility watches the local area network (LAN) for DHCP requests and reports the ip address of any "
-          "Raspberry Pi that powers-up connected to the same LAN.")
+    print("While running, this utility monitors the local area network (LAN) for DHCP requests and reports the ip "
+          "address of any Raspberry Pi that powers-up connected to the LAN.")
+    print()
     print("OPTIONS:")
     print("  -a\tDisplay ALL devices (not just RPis) making a DHCP request for an ip address.")
     print("  -h\tDisplay this help message.")
