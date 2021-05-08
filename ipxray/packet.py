@@ -129,6 +129,7 @@ class DHCPPacket:
     DHCP packet decoder.
     """
 
+    CLIENT_HW_ADDRESS_OFFSET = 28
     OPTIONS_OFFSET = 240
 
 
@@ -164,6 +165,7 @@ class DHCPPacket:
         """
 
         self.is_dhcp = False
+        self.client_hw_address = None
         self.options = []
         self.message_type = None
         self.hostname = None
@@ -180,11 +182,14 @@ class DHCPPacket:
         :return:
         """
 
-        # Attempt to parse options fields
         try:
+            # Parse the mac address of the client
+            self.client_hw_address = struct.unpack_from("!6s", udp_payload, self.CLIENT_HW_ADDRESS_OFFSET)[0]
+
             # Create iterator at the beginning of options field
             option_iter = islice(udp_payload, self.OPTIONS_OFFSET, None)
 
+            # Attempt to parse options fields
             while True:
                 # DHCP option code
                 o_code = next(option_iter)
