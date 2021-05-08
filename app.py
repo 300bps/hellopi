@@ -186,7 +186,15 @@ def close_socket(sock: socket.socket):
         sock.close()
 
 
-def show_hello(p, dhcp, is_rpi=True, verbose=False):
+def show_hello(p: ipxray.INETPacket, dhcp: ipxray.DHCPPacket, is_rpi: bool = True, verbose: bool = False):
+    """
+    Display formatted 'hello' message.
+    :param p: INETPacket
+    :param dhcp: DHCPPacket
+    :param is_rpi: True-device is an RPi; False-device is not an RPi
+    :param verbose: True-provide more details; False-provide terse output
+    :return:
+    """
     verbose_ip = f"[IP Address {p.ip.format_ip_addr(dhcp.requested_ip)}]"
     verbose_common = f"{format_time(dt.datetime.now())} | {verbose_ip:<28} "
 
@@ -194,15 +202,17 @@ def show_hello(p, dhcp, is_rpi=True, verbose=False):
 
     if is_rpi:
         if verbose:
-            hello_msg = verbose_common + \
-                        f"- Raspberry Pi '{dhcp.hostname}' ({p.enet.format_mac_addr(p.enet.src_mac)}) said \"Hello!\""
+            hello_msg = (verbose_common +
+                        f"- Raspberry Pi '{dhcp.hostname}' "
+                        f"({ipxray.ENETPacket.format_mac_addr(dhcp.client_hw_address)}) said \"Hello!\"")
 
         else:
             hello_msg = terse_common + f"- Raspberry Pi '{dhcp.hostname}' said \"Hello!\""
 
     else:
         if verbose:
-            hello_msg = verbose_common + f"- Device '{dhcp.hostname}' said \"Hello!\""
+            hello_msg = (verbose_common + f"- Device '{dhcp.hostname}' "
+            f"({ipxray.ENETPacket.format_mac_addr(dhcp.client_hw_address)}) said \"Hello!\"")
 
         else:
             hello_msg = terse_common + f"- Device '{dhcp.hostname}' said \"Hello!\""
@@ -233,8 +243,7 @@ def show_help():
     print(APP_NAME, f"(v{APP_VERSION:s})")
     print("--------")
     print("This utility watches the local area network (LAN) for DHCP requests and reports the ip address of any "
-          "Raspberry Pi that boots up connected to the same LAN. On Windows, option '-a' is always applied due to "
-          "the inability to access the raw ethernet frame.")
+          "Raspberry Pi that powers-up connected to the same LAN.")
     print("OPTIONS:")
     print("  -a\tDisplay ALL devices (not just RPis) making a DHCP request for an ip address.")
     print("  -h\tDisplay this help message.")
@@ -269,8 +278,7 @@ def main():
             sys.exit(0)
 
         # Cmdline arg: '-a' = Display all device (not just RPis) DHCP requests
-        # (Windows always applies '-a' option)
-        if cmdline_args_dict.get('-a', False) or windows_platform:
+        if cmdline_args_dict.get('-a', False):
             show_all_devices = True
 
         # Cmdline arg: '-v' = Use verbose output statements
@@ -281,8 +289,6 @@ def main():
         if not cmdline_args_dict.get('-q', False):
             # Print app identifying info and status
             print(APP_NAME)
-            if windows_platform:
-                print("(Note: Windows always applies the '-a' option.)")
 
             if verbose_output:
                 # Verbose version
@@ -305,7 +311,7 @@ def main():
             print()
 
 
-        # Reuseable packet buffer
+        # Reusable packet buffer
         packet_buffer = bytearray(2*4096)
 
         # Open the socket and look for desired packet
@@ -326,8 +332,6 @@ def main():
                 # Attempt to decode the packet
                 if windows_platform:
                     # Win sockets return ip protocol (layer 3)
-                    # NOTE: Without layer 2, we can't get the MAC address to test the OUI to see if device is a RPi.
-                    # As a result, the utility automatically applies the '-a' option to show all devices on Windows.
                     p = ipxray.INETPacket(ip_packet=packet_buffer)
 
                 else:
@@ -344,16 +348,11 @@ def main():
 
                     # DHCP request message found
                     if dhcp.message_type == dhcp.OptionMessageType.DHCPRequest:
-                        if windows_platform:
-                            # Windows must treat everything as not RPi since it doesn't have access to MAC address
-                            show_hello(p, dhcp, is_rpi=False, verbose=verbose_output)
+                        # If OUI is in RPi Foundation OUIs, then device is a RPi
+                        is_rpi = dhcp.client_hw_address[0:3] in RASPBERRY_PI_MAC_OUIS
 
-                        else:
-                            # If OUI is in RPi foundation OUIs, then it is a RPi
-                            is_rpi = p.enet.src_mac[0:3] in RASPBERRY_PI_MAC_OUIS
-
-                            if is_rpi or show_all_devices:
-                                show_hello(p, dhcp, is_rpi=is_rpi, verbose=verbose_output)
+                        if is_rpi or show_all_devices:
+                            show_hello(p, dhcp, is_rpi=is_rpi, verbose=verbose_output)
 
         finally:
             # Close the socket when exiting
@@ -371,6 +370,5 @@ def main():
 
 
 
-# Ensure that the software is run in the expected way - through the run.py script
 if __name__ == "__main__":
-    print("To run this software, execute 'python run.py'.")
+    main()
