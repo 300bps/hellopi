@@ -57,4 +57,29 @@ _Hello Pi_ on Windows must be run with administrator privileges. This is require
 "raw socket", which it uses to see DHCP Request broadcast messages sent by devices connecting to the LAN. From these
 messages, it can display the ip address of the connecting RPi or device.
 
-TODO: ADD NOTE ABOUT FIREWALL REQUIREMENTS TO ALLOW READING OF BROADCAST DHCP
+For _Hello Pi_ to read broadcast DHCP Request messages on Windows, they must be allowed through the firewall. 
+To allow broadcast DHCP Requests on Windows, add the following firewall ALLOW rule:
+
+```
+WINDOWS FIREWALL ALLOW RULE:
+    Name: DHCP Server Port
+    Protocol: UDP
+    Local port: 67
+    Remote port: 68
+    Local IP Address: 255.255.255.255
+    Remote IP Address: 0.0.0.0
+```
+
+### Command-line Options: ###
+```
+USAGE: 
+    hellopi <OPTIONS>
+            OR
+    python3 hellopi.py <OPTIONS>
+
+OPTIONS:
+  -a    Display ALL devices (not just RPis) making a DHCP Request for an ip address.
+  -h    Display this help message.
+  -q    Quiet the program startup information.
+  -v    Display verbose messages.
+```
