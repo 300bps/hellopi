@@ -83,3 +83,25 @@ OPTIONS:
   -q    Quiet the program startup information.
   -v    Display verbose messages.
 ```
+
+### Installation: ###
+#### Run From Source: ####
+1) To run _Hello Pi_ from source, download the project source files into the desired folder.
+2) Open a terminal window in the source directory.
+    * Windows: Right-click the _Command Prompt_ app and select "Run as administrator". Next change to the source directory.
+    * Linux: Open a terminal window and change to the source directory.
+3) Run the program with administrator access rights.
+    * Windows: The _Command Prompt_ app was already opened with admin rights in step 2, so simply run the command with: 
+    __python3 hellopi.py -h__
+    * Linux: Run the command with: __sudo python3 hellopi.py -h__
+    
+#### Install and Run System-wide: ###
+1) To install _Hello Pi_ so that it can be run like a command, download the project source files into a working folder.
+2) Open a terminal window in the source directory.
+    * Windows: Right-click the _Command Prompt_ app and select "Run as administrator". Next change to the source directory.
+    * Linux: Open a terminal window and change to the source directory.
+3) Run the __setup.py install__ program with administrator access rights.
+    * Windows: __python setup.py install__
+    * Linux: __sudo python3 setup.py install__
+4) To run _Hello Pi_ any time after installation, open a terminal window and use the __hellopi__ command. 
+Use __hellopi -h__ to see a list of the command's options.
