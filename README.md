@@ -28,8 +28,12 @@ other device to be discovered.
 5. Observe the output of _Hello Pi_ on the Host to learn the ip address assigned to the Target.
 6. To repeat the process, power-down the Target and return to step 2. 
 
+### System Requirements: ###
+* Operating System: Linux/BSD or Windows
+* Python: Version 3.5 or newer
+
 ### Theory of Operation: ###
-This section is presented for those curious about how the program works, but is not required reading  
+This section is presented for those curious about how the program works, but is not required reading 
 to use the program.  
 
 _Hello Pi_ listens to the exchange between the Target device and the DHCP server. When the Target is 
@@ -45,7 +49,6 @@ address of any device that connects and is configured via DHCP. In order to disc
 other devices, the OUI (Organizationally Unique Identifier) of the MAC address is compared to the
 OUIs registered to the Raspberry Pi Foundation.  
 
-
 ### Platform-specific Details: ###
 ##### Linux/BSD: #####
 _Hello Pi_ on Linux must be run with elevated privileges (via sudo or as root). This is required to allow it to create a
@@ -58,7 +61,7 @@ _Hello Pi_ on Windows must be run with administrator privileges. This is require
 messages, it can display the ip address of the connecting RPi or device.
 
 For _Hello Pi_ to read broadcast DHCP Request messages on Windows, they must be allowed through the firewall. 
-To allow broadcast DHCP Requests on Windows, add the following firewall ALLOW rule:
+To allow broadcast DHCP Requests on Windows, you may need to add the following firewall ALLOW rule:
 
 ```
 WINDOWS FIREWALL ALLOW RULE:
@@ -84,18 +87,21 @@ OPTIONS:
   -v    Display verbose messages.
 ```
 
-### Installation: ###
-#### Run From Source: ####
-1) To run _Hello Pi_ from source, download the project source files into the desired folder.
-2) Open a terminal window in the source directory.
-    * Windows: Right-click the _Command Prompt_ app and select "Run as administrator". Next change to the source directory.
-    * Linux: Open a terminal window and change to the source directory.
-3) Run the program with administrator access rights.
-    * Windows: The _Command Prompt_ app was already opened with admin rights in step 2, so simply run the command with: 
-    __python3 hellopi.py -h__
-    * Linux: Run the command with: __sudo python3 hellopi.py -h__
-    
-#### Install and Run System-wide: ###
+### Installation Options: ###
+Choose any one of the following methods to install / run _Hello Pi_.
+#### Install and Run System-wide Using Pip: ####
+If _pip_ is installed on your computer and the computer has access to the internet, the easiest way to install _Hello Pi_ 
+is by using _pip_.
+1) Open a terminal window.
+    * Windows: Right-click the _Command Prompt_ app and select "Run as administrator".
+    * Linux: Open a terminal window.
+2) Install using pip:
+    * Windows: __pip install hellopi__
+    * Linux: __sudo pip3 install hellopi__
+3) To run _Hello Pi_ any time after installation, open a terminal window and use the __hellopi__ command. 
+Use __hellopi -h__ to see a list of the command's options.
+
+#### Install and Run System-wide Using setup.py: ###
 1) To install _Hello Pi_ so that it can be run like a command, download the project source files into a working folder.
 2) Open a terminal window in the source directory.
     * Windows: Right-click the _Command Prompt_ app and select "Run as administrator". Next change to the source directory.
@@ -105,3 +111,13 @@ OPTIONS:
     * Linux: __sudo python3 setup.py install__
 4) To run _Hello Pi_ any time after installation, open a terminal window and use the __hellopi__ command. 
 Use __hellopi -h__ to see a list of the command's options.
+
+#### Run From Source: ####
+1) To run _Hello Pi_ from source, download the project source files into the desired folder.
+2) Open a terminal window in the source directory.
+    * Windows: Right-click the _Command Prompt_ app and select "Run as administrator". Next change to the source directory.
+    * Linux: Open a terminal window and change to the source directory.
+3) Run the program with administrator access rights.
+    * Windows: The _Command Prompt_ app was already opened with admin rights in step 2, so simply run the command with: 
+    __python3 hellopi.py -h__
+    * Linux: Run the command with: __sudo python3 hellopi.py -h__
